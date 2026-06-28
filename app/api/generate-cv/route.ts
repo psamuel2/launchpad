@@ -4,11 +4,10 @@ export const runtime = "nodejs"
 
 interface CVInput {
   role: string
-  fullName?: string
-  about?: string
-  education?: string
-  experience?: string
-  skills?: string
+  about: string
+  education: string
+  experience: string
+  skills: string
   rawUpload?: string
 }
 
@@ -24,87 +23,75 @@ export async function POST(req: NextRequest) {
     }
 
     const body: CVInput = await req.json()
-    const { role, fullName, about, education, experience, skills, rawUpload } = body
+    const { role, about, education, experience, skills, rawUpload } = body
 
     if (!role || !role.trim()) {
       return NextResponse.json({ error: "Role is required." }, { status: 400 })
     }
 
+    const hasStructuredInput =
+      (about && about.trim()) ||
+      (education && education.trim()) ||
+      (experience && experience.trim()) ||
+      (skills && skills.trim())
+
     let prompt: string
 
     if (rawUpload && rawUpload.trim()) {
-      prompt = `You are an expert CV writer. Below is the raw text of a candidate's existing CV, extracted from an uploaded file. It may have messy formatting.
+      // Upload path: the candidate provided a raw existing CV.
+      // The AI must extract and reorganize experience/education/skills itself,
+      // not assume they were provided as separate structured fields.
+      prompt = `You are an expert CV writer. Below is the raw text of a candidate's existing CV, extracted from an uploaded file. It may have messy formatting from the original document.
+
+Your job: read through it carefully, extract their real experience, education, and skills, and rewrite the whole thing as a polished, ATS-friendly CV tailored for a "${role}" role.
 
 RAW UPLOADED CV TEXT:
 """
 ${rawUpload.slice(0, 6000)}
 """
 
-${skills?.trim() ? `Extra notes from the candidate: ${skills}` : ""}
+${skills && skills.trim() ? `The candidate also added these extra notes to emphasize: ${skills}` : ""}
 
-Your job: read through it carefully, extract all real details, and rewrite it as a polished, ATS-friendly CV tailored for a "${role}" role.
-
-Use EXACTLY these section headers in ALL CAPS on their own line. No asterisks, no markdown, no bold, no hashes.
-
-CONTACT
-(Extract the candidate's full name, email address, phone number, and physical address or city/country from the raw text above. Write each item on its own line. If any detail is genuinely missing from the raw text, omit that line — do not invent anything.)
+Write the output as clean plain text using EXACTLY this structure with these section headers in capital letters, no markdown symbols, no asterisks, no bold formatting:
 
 PROFESSIONAL SUMMARY
-(2-3 sentences tailored to the "${role}" role, highlighting strengths drawn from their actual background.)
+(2-3 sentences, tailored to the role, highlighting strengths drawn from their actual background above)
 
 EXPERIENCE
-(For each role found in the raw text, use this exact format:
-Job Title — Organisation Name | Start Date – End Date
-- Strong achievement or responsibility bullet starting with an action verb
-- Strong achievement or responsibility bullet starting with an action verb
-Use the actual job titles, employer names, and dates found in the uploaded text. Do not invent any details not present in it. If no work history is found, write "No work history found in uploaded document.")
+(Extract their real work history from the raw text above and convert it into 3-6 strong bullet points starting with action verbs. Use "- " for each bullet. Use the actual employers, titles, and details found in the raw text — do not invent anything not present in it. If the raw text genuinely contains no work history, say so honestly instead of guessing.)
 
 EDUCATION
-(For each qualification found in the raw text, use this exact format:
-Degree or Qualification — Institution Name | Year
-One entry per line. Use only details actually found in the uploaded text.)
+(Extract their real education history from the raw text above, one entry per line. If genuinely not present, say so honestly.)
 
 KEY SKILLS
-(A comma-separated list of skills relevant to the "${role}" role, drawn from the candidate's actual background.)
+(Extract and refine their real skills from the raw text above into a comma-separated list, relevant to the role.)
 
-Do not add any commentary, preamble, or sign-off before or after the CV content.`
-
+Keep the tone professional and concise. Do not add any commentary before or after the CV content. Do not use markdown formatting like ** or #.`
     } else {
+      // Manual path: structured fields were filled in directly.
       prompt = `You are an expert CV writer. Based on the rough notes below, write a polished, ATS-friendly CV tailored for a "${role}" role.
 
-Candidate name: ${fullName || "(not provided)"}
-About: ${about || "(not provided)"}
-Experience: ${experience || "(not provided)"}
-Education: ${education || "(not provided)"}
-Skills: ${skills || "(not provided)"}
+Rough notes from the candidate:
+ABOUT: ${about || "(not provided)"}
+EXPERIENCE: ${experience || "(not provided)"}
+EDUCATION: ${education || "(not provided)"}
+SKILLS: ${skills || "(not provided)"}
 
-Use EXACTLY these section headers in ALL CAPS on their own line. No asterisks, no markdown, no bold, no hashes.
-
-CONTACT
-(Write the candidate's name on the first line if provided. Then add placeholder lines exactly as shown so they can fill them in:
-[Your email address]
-[Your phone number]
-[Your city / address])
+Write the output as clean plain text using EXACTLY this structure with these section headers in capital letters, no markdown symbols, no asterisks, no bold formatting:
 
 PROFESSIONAL SUMMARY
-(2-3 sentences tailored to the "${role}" role, highlighting the candidate's strengths.)
+(2-3 sentences, tailored to the role, highlighting strengths)
 
 EXPERIENCE
-(For each role the candidate mentioned, use this exact format:
-Job Title — Organisation Name | Start Date – End Date
-- Strong achievement or responsibility bullet starting with an action verb
-- Strong achievement or responsibility bullet starting with an action verb
-If the candidate gave minimal detail, write reasonable achievement-oriented bullets. If they did not provide an organisation name or dates, use [Company Name] and [Year] as placeholders — do not invent specific details.)
+(Convert into 3-6 strong bullet points starting with action verbs. Use "- " for each bullet. If the candidate gave minimal detail, write reasonable, achievement-oriented bullets based on what they provided — do not invent specific employers, dates, or numbers that were not given.)
 
 EDUCATION
-(For each qualification, use this exact format:
-Degree or Qualification — Institution Name | Year
-If institution or year was not provided, use [Institution] or [Year] as placeholders.)
+(List clearly, one entry per line)
 
 KEY SKILLS
-(A comma-separated list of skills relevant to the "${role}" role, refined from what the candidate provided.)
+(Comma-separated list of relevant skills, refined and role-relevant)
 
-Do not add any commentary, preamble, or sign-off before or after the CV content.`
+Keep the tone professional and concise. Do not add any commentary before or after the CV content. Do not use markdown formatting like ** or #.`
     }
 
     const response = await fetch(

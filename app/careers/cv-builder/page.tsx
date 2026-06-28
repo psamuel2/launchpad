@@ -23,7 +23,7 @@ export default function CVBuilder() {
   const [experience, setExperience] = useState("")
   const [skills, setSkills] = useState("")
 
-  // Upload path
+  // Upload path: raw file text, kept separate from manual fields
   const [rawUpload, setRawUpload] = useState("")
   const [uploadExtraNotes, setUploadExtraNotes] = useState("")
 
@@ -43,36 +43,19 @@ export default function CVBuilder() {
     if (!file) return
     setFileName(file.name)
     setUploadWarning("")
-    setErrorMsg("")
 
-    const isPlainText =
-      file.type === "text/plain" || file.name.toLowerCase().endsWith(".txt")
+    const isPlainText = file.type === "text/plain" || file.name.toLowerCase().endsWith(".txt")
 
     try {
-      if (isPlainText) {
-        const text = await file.text()
-        setRawUpload(text.slice(0, 6000))
-      } else {
-        // Extract readable text from binary files (PDF/Word)
-        const buffer = await file.arrayBuffer()
-        const decoder = new TextDecoder("latin1")
-        const raw = decoder.decode(buffer)
-        // Pull out readable ASCII sequences of 4+ characters
-        const readable = raw.match(/[ -~]{4,}/g)?.join(" ") ?? ""
-        if (readable.trim().length < 100) {
-          setUploadWarning(
-            "We couldn't extract enough text from this file. For best results, open your CV and save it as a .txt file, then re-upload."
-          )
-          setRawUpload(readable.slice(0, 6000))
-        } else {
-          setRawUpload(readable.slice(0, 6000))
-          setUploadWarning(
-            "PDF/Word files may lose some formatting during extraction. If anything looks off after generating, try re-uploading as a .txt file."
-          )
-        }
+      const text = await file.text()
+      setRawUpload(text.slice(0, 6000))
+      if (!isPlainText) {
+        setUploadWarning(
+          "Heads up: PDF/Word files may extract with messy formatting. If your CV looks off after generating, try re-uploading as a .txt file or switch to manual entry."
+        )
       }
     } catch {
-      setErrorMsg("Could not read that file. Try saving your CV as a .txt file and re-uploading.")
+      setErrorMsg("Could not read that file. Try a .txt file or fill in details manually instead.")
     }
   }
 
@@ -82,8 +65,8 @@ export default function CVBuilder() {
     try {
       const payload =
         method === "upload"
-          ? { role, fullName, rawUpload, skills: uploadExtraNotes }
-          : { role, fullName, about, education, experience, skills }
+          ? { role, rawUpload, skills: uploadExtraNotes }
+          : { role, about, education, experience, skills }
 
       const res = await fetch("/api/generate-cv", {
         method: "POST",
@@ -113,7 +96,7 @@ export default function CVBuilder() {
       const res = await fetch("/api/generate-cover-letter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, cvSummary: summary, fullName }),
+        body: JSON.stringify({ role, cvSummary: summary }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -175,11 +158,11 @@ export default function CVBuilder() {
           </div>
         )}
 
-        {/* STEP 1: Role + Name */}
+        {/* STEP 1: Role */}
         {step === 1 && (
           <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
             <h2 className="text-xl font-semibold mb-1">What role are you applying for?</h2>
-            <p className="text-slate-400 text-sm mb-6">This helps tailor the tone and content of your CV.</p>
+            <p className="text-slate-400 text-sm mb-6">This helps tailor the tone and content.</p>
             <input
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 transition text-sm mb-4"
               placeholder="e.g. Customer Support Specialist"
@@ -188,7 +171,7 @@ export default function CVBuilder() {
             />
             <input
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 transition text-sm mb-6"
-              placeholder="Your full name (appears on the CV)"
+              placeholder="Your full name (for the CV header)"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
             />
@@ -205,7 +188,7 @@ export default function CVBuilder() {
         {/* STEP 2: Method */}
         {step === 2 && (
           <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
-            <h2 className="text-xl font-semibold mb-6">How would you like to build your CV?</h2>
+            <h2 className="text-xl font-semibold mb-6">Choose how to build your CV</h2>
             <div className="grid md:grid-cols-2 gap-4">
               <button
                 className="p-6 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all text-left"
@@ -213,7 +196,7 @@ export default function CVBuilder() {
               >
                 <div className="text-3xl mb-3">📄</div>
                 <div className="font-semibold text-sm mb-1">Upload existing CV</div>
-                <div className="text-slate-400 text-xs">AI reads it and rewrites it for this role</div>
+                <div className="text-slate-400 text-xs">AI rewrites and tailors it for this role</div>
               </button>
               <button
                 className="p-6 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all text-left"
@@ -232,31 +215,22 @@ export default function CVBuilder() {
           <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
             <h2 className="text-xl font-semibold mb-1">Upload your previous CV</h2>
             <p className="text-slate-400 text-sm mb-6">
-              AI will read it, extract your experience, education and skills, and rewrite it for this role.
-              Plain <span className="text-white">.txt files</span> work most reliably.
+              AI will read it, pull out your real experience, education and skills, and rewrite it for this role. Plain .txt files work most reliably.
             </p>
             <label className="block border-2 border-dashed border-white/15 rounded-xl p-8 text-center cursor-pointer hover:border-blue-500/50 transition">
               <input type="file" accept=".pdf,.doc,.docx,.txt" onChange={handleUpload} className="hidden" />
               <div className="text-2xl mb-2">📤</div>
               <div className="text-sm text-slate-300">Click to choose a file</div>
-              <div className="text-xs text-slate-500 mt-1">.txt, .pdf, .doc, .docx supported</div>
             </label>
-
-            {fileName && (
-              <p className="text-sm text-slate-400 mt-4">
-                Uploaded: <span className="text-white">{fileName}</span>
-              </p>
-            )}
-
+            {fileName && <p className="text-sm text-slate-400 mt-4">Uploaded: {fileName}</p>}
             {uploadWarning && (
               <div className="mt-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
                 {uploadWarning}
               </div>
             )}
-
             <button
-              className="mt-4 text-sm text-blue-400 hover:text-blue-300 transition"
-              onClick={() => { setMethod("manual"); setUploadWarning("") }}
+              className="mt-6 text-sm text-blue-400 hover:text-blue-300 transition"
+              onClick={() => setMethod("manual")}
             >
               Or fill in details manually instead →
             </button>
@@ -264,11 +238,11 @@ export default function CVBuilder() {
             {rawUpload && (
               <div className="mt-6">
                 <label className="block text-sm text-slate-300 mb-2">
-                  Anything specific to highlight for this role? <span className="text-slate-500">(optional)</span>
+                  Anything specific to emphasize for this role? (optional)
                 </label>
                 <textarea
                   className="w-full h-24 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 transition text-sm"
-                  placeholder="e.g. focus more on leadership, or mention I'm open to relocating"
+                  placeholder="e.g. focus more on leadership experience, or mention I'm open to relocating"
                   value={uploadExtraNotes}
                   onChange={(e) => setUploadExtraNotes(e.target.value)}
                 />
@@ -293,7 +267,7 @@ export default function CVBuilder() {
                 <label className="block text-sm text-slate-300 mb-2">About you</label>
                 <textarea
                   className="w-full h-24 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 transition text-sm"
-                  placeholder="Briefly describe your background and what you bring to this role"
+                  placeholder="Briefly describe your background"
                   value={about}
                   onChange={(e) => setAbout(e.target.value)}
                 />
@@ -301,8 +275,8 @@ export default function CVBuilder() {
               <div>
                 <label className="block text-sm text-slate-300 mb-2">Experience</label>
                 <textarea
-                  className="w-full h-32 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 transition text-sm"
-                  placeholder="List your roles, organisations, dates and key responsibilities. Rough notes are fine — e.g. 'Sales Rep at Acme Ltd 2020-2023, managed 50 accounts'"
+                  className="w-full h-28 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 transition text-sm"
+                  placeholder="Roles, responsibilities, achievements (rough notes are fine)"
                   value={experience}
                   onChange={(e) => setExperience(e.target.value)}
                 />
@@ -311,7 +285,7 @@ export default function CVBuilder() {
                 <label className="block text-sm text-slate-300 mb-2">Education</label>
                 <textarea
                   className="w-full h-20 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 transition text-sm"
-                  placeholder="Degrees, schools, certifications and years — e.g. BSc Computer Science, University of Lagos, 2019"
+                  placeholder="Degrees, schools, certifications"
                   value={education}
                   onChange={(e) => setEducation(e.target.value)}
                 />
@@ -320,7 +294,7 @@ export default function CVBuilder() {
                 <label className="block text-sm text-slate-300 mb-2">Skills</label>
                 <textarea
                   className="w-full h-20 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 transition text-sm"
-                  placeholder="Relevant skills, tools, software, languages"
+                  placeholder="Relevant skills, tools, languages"
                   value={skills}
                   onChange={(e) => setSkills(e.target.value)}
                 />
@@ -343,9 +317,7 @@ export default function CVBuilder() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-xl font-semibold">Your tailored CV</h2>
-                  <p className="text-slate-400 text-sm mt-0.5">
-                    Role: <span className="text-white">{role}</span>
-                  </p>
+                  <p className="text-slate-400 text-sm">Role: <span className="text-white">{role}</span></p>
                 </div>
                 <button
                   className="text-xs text-slate-400 hover:text-white transition"
@@ -355,7 +327,7 @@ export default function CVBuilder() {
                 </button>
               </div>
 
-              {/* Edit / Preview toggle */}
+              {/* Edit/Preview toggle */}
               <div className="inline-flex bg-white/5 border border-white/10 rounded-xl p-1 mb-4">
                 <button
                   className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
@@ -382,9 +354,7 @@ export default function CVBuilder() {
                     value={summary}
                     onChange={(e) => setSummary(e.target.value)}
                   />
-                  <p className="text-xs text-slate-500 mt-2">
-                    Edit the text directly. Switch to Preview to see how it looks.
-                  </p>
+                  <p className="text-xs text-slate-500 mt-2">You can edit the text directly. Switch to Preview to see how it'll look.</p>
                 </>
               ) : (
                 <div className="bg-[#0a0f1f] border border-white/10 rounded-xl p-6 max-h-[600px] overflow-y-auto">
@@ -415,11 +385,11 @@ export default function CVBuilder() {
               </div>
             </div>
 
-            {/* Cover Letter */}
             {coverLetter && (
               <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
                 <h2 className="text-xl font-semibold mb-4">Cover Letter</h2>
 
+                {/* Edit/Preview toggle */}
                 <div className="inline-flex bg-white/5 border border-white/10 rounded-xl p-1 mb-4">
                   <button
                     className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
