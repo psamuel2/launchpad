@@ -19,6 +19,7 @@ export default function Sidebar({ user }: { user: any }) {
 
   const userName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User"
   const userInitials = userName.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)
+  const avatarUrl = user?.user_metadata?.avatar_url || null
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -33,27 +34,33 @@ export default function Sidebar({ user }: { user: any }) {
 
       {/* Nav */}
       <nav className="flex flex-col gap-1">
-        {navItems.map((item) => (
-          <Link
-            key={item.id}
-            href={item.path}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
-              pathname === item.path
-                ? "bg-white/10 text-white font-medium"
-                : "text-slate-400 hover:bg-white/5 hover:text-white"
-            }`}
-          >
-            <span className="text-base">{item.icon}</span>
-            {item.label}
-          </Link>
-        ))}
+        {navItems.map((item) => {
+          const isActive = pathname === item.path
+          return (
+            <Link
+              key={item.id}
+              href={item.path}
+              className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 ${
+                isActive
+                  ? "bg-white/10 text-white font-medium"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white hover:translate-x-0.5"
+              }`}
+            >
+              {isActive && (
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-full bg-blue-500" />
+              )}
+              <span className="text-base">{item.icon}</span>
+              {item.label}
+            </Link>
+          )
+        })}
       </nav>
 
       {/* Upgrade CTA */}
-      <div className="mt-6 p-4 rounded-xl bg-gradient-to-br from-blue-600/20 to-violet-600/20 border border-blue-500/20">
+      <div className="mt-6 p-4 rounded-xl bg-gradient-to-br from-blue-600/20 to-violet-600/20 border border-blue-500/20 transition-colors hover:border-blue-500/35">
         <div className="text-sm font-medium mb-1">Go Pro</div>
         <p className="text-xs text-slate-400 mb-3">Unlock unlimited tools and AI features.</p>
-        <button className="w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-medium transition">
+        <button className="w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-500 hover:scale-[1.02] active:scale-[0.98] text-xs font-medium transition-all">
           Upgrade — ₦2,500/mo
         </button>
       </div>
@@ -61,8 +68,16 @@ export default function Sidebar({ user }: { user: any }) {
       {/* User */}
       <div className="mt-auto pt-5 border-t border-white/8">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold shrink-0">
-            {userInitials}
+          <div className="w-8 h-8 rounded-full overflow-hidden bg-blue-600 flex items-center justify-center text-xs font-bold shrink-0">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={userName}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              userInitials
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium truncate">{userName}</p>

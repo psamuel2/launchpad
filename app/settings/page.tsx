@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase"
 import Sidebar from "@/components/Sidebar"
@@ -29,6 +29,12 @@ export default function SettingsPage() {
     securityAlerts: true,
   })
 
+  // Avatar state
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [avatarError, setAvatarError] = useState("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const router = useRouter()
   const supabase = createClient()
 
@@ -40,6 +46,7 @@ export default function SettingsPage() {
         setUser(user)
         setFullName(user.user_metadata?.full_name || "")
         setEmail(user.email || "")
+        setAvatarUrl(user.user_metadata?.avatar_url || null)
         setLoading(false)
       }
     })
@@ -66,10 +73,66 @@ export default function SettingsPage() {
     setTimeout(() => setResetSent(false), 4000)
   }
 
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !user) return
+
+    setAvatarError("")
+
+    // Basic validation
+    if (!file.type.startsWith("image/")) {
+      setAvatarError("Please choose an image file.")
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError("Image must be smaller than 5MB.")
+      return
+    }
+
+    // Optimistic local preview
+    const localPreview = URL.createObjectURL(file)
+    setAvatarUrl(localPreview)
+    setUploadingAvatar(true)
+
+    try {
+      const fileExt = file.name.split(".").pop()
+      const filePath = `${user.id}/avatar.${fileExt}`
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, { upsert: true })
+
+      if (uploadError) throw uploadError
+
+      const { data: publicUrlData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath)
+
+      const publicUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`
+
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: { avatar_url: publicUrl },
+      })
+
+      if (updateError) throw updateError
+
+      setAvatarUrl(publicUrl)
+    } catch (err: any) {
+      console.error(err)
+      setAvatarError("Upload failed. Please try again.")
+      setAvatarUrl(user.user_metadata?.avatar_url || null)
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#050816] flex items-center justify-center">
-        <div className="text-slate-400 text-sm">Loading…</div>
+        <div className="flex items-center gap-3 text-slate-400 text-sm">
+          <span className="w-4 h-4 border-2 border-slate-600 border-t-blue-500 rounded-full animate-spin" />
+          Loading…
+        </div>
       </div>
     )
   }
@@ -86,7 +149,7 @@ export default function SettingsPage() {
         <div className="max-w-4xl mx-auto px-6 py-10">
 
           {/* Page header */}
-          <div className="mb-8">
+          <div className="mb-8 animate-fade-up">
             <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
             <p className="text-slate-400 mt-1 text-sm">Manage your account preferences and security</p>
           </div>
@@ -94,18 +157,21 @@ export default function SettingsPage() {
           <div className="flex gap-8">
 
             {/* Left tab nav */}
-            <aside className="w-48 shrink-0">
+            <aside className="w-48 shrink-0 animate-fade-up" style={{ animationDelay: "60ms" }}>
               <nav className="flex flex-col gap-1">
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-left transition-all ${
+                    className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-left transition-all duration-200 ${
                       activeTab === tab.id
                         ? "bg-white/10 text-white font-medium"
-                        : "text-slate-400 hover:bg-white/5 hover:text-white"
+                        : "text-slate-400 hover:bg-white/5 hover:text-white hover:translate-x-0.5"
                     }`}
                   >
+                    {activeTab === tab.id && (
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-full bg-blue-500" />
+                    )}
                     <span className="text-base">{tab.icon}</span>
                     {tab.label}
                   </button>
@@ -132,30 +198,80 @@ export default function SettingsPage() {
 
               {/* ── PROFILE TAB ── */}
               {activeTab === "profile" && (
-                <div className="space-y-5">
+                <div className="space-y-5 animate-fade-up" style={{ animationDelay: "120ms" }}>
 
                   {/* Avatar card */}
-                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-6">
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-6 transition-colors hover:border-white/12">
                     <h2 className="text-sm font-semibold text-slate-300 mb-5 uppercase tracking-wider">
                       Profile Photo
                     </h2>
                     <div className="flex items-center gap-5">
-                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-xl font-bold shrink-0">
-                        {userInitials}
+                      <div className="relative group shrink-0">
+                        <div className="w-16 h-16 rounded-2xl overflow-hidden bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-xl font-bold ring-2 ring-white/0 group-hover:ring-blue-500/40 transition-all duration-200">
+                          {avatarUrl ? (
+                            <img
+                              src={avatarUrl}
+                              alt={fullName || "Profile photo"}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            userInitials
+                          )}
+                        </div>
+
+                        {/* Hover overlay */}
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={uploadingAvatar}
+                          className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/55 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200"
+                          aria-label="Change profile photo"
+                        >
+                          {uploadingAvatar ? (
+                            <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <span className="text-sm">📷</span>
+                          )}
+                        </button>
+
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleAvatarChange}
+                          className="hidden"
+                        />
                       </div>
+
                       <div>
                         <p className="font-semibold text-white">{fullName || "No name set"}</p>
                         <p className="text-sm text-slate-400 mt-0.5">{email}</p>
                         <span className="mt-2 inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-medium">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse-slow" />
                           Free plan
                         </span>
                       </div>
                     </div>
+
+                    <div className="mt-4 flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingAvatar}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition disabled:opacity-50"
+                      >
+                        {uploadingAvatar ? "Uploading…" : "Upload new photo"}
+                      </button>
+                      <p className="text-xs text-slate-500">JPG or PNG, up to 5MB</p>
+                    </div>
+
+                    {avatarError && (
+                      <p className="mt-3 text-xs text-red-400">{avatarError}</p>
+                    )}
                   </div>
 
                   {/* Personal info */}
-                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-6">
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-6 transition-colors hover:border-white/12">
                     <h2 className="text-sm font-semibold text-slate-300 mb-5 uppercase tracking-wider">
                       Personal Information
                     </h2>
@@ -170,7 +286,7 @@ export default function SettingsPage() {
                             value={fullName}
                             onChange={(e) => setFullName(e.target.value)}
                             placeholder="Your full name"
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-white/8 transition text-sm"
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 focus:bg-white/8 transition text-sm"
                           />
                         </div>
                         <div>
@@ -192,7 +308,7 @@ export default function SettingsPage() {
                       </div>
 
                       {saved && (
-                        <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm">
+                        <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm animate-fade-up">
                           <span>✅</span> Profile updated successfully!
                         </div>
                       )}
@@ -202,7 +318,7 @@ export default function SettingsPage() {
                         <button
                           type="submit"
                           disabled={saving}
-                          className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-medium transition-all disabled:opacity-60 flex items-center gap-2"
+                          className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 hover:scale-[1.02] active:scale-[0.98] text-sm font-medium transition-all disabled:opacity-60 flex items-center gap-2"
                         >
                           {saving ? (
                             <>
@@ -219,8 +335,8 @@ export default function SettingsPage() {
 
               {/* ── SECURITY TAB ── */}
               {activeTab === "security" && (
-                <div className="space-y-5">
-                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-6">
+                <div className="space-y-5 animate-fade-up" style={{ animationDelay: "120ms" }}>
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-6 transition-colors hover:border-white/12">
                     <h2 className="text-sm font-semibold text-slate-300 mb-5 uppercase tracking-wider">
                       Password
                     </h2>
@@ -231,7 +347,7 @@ export default function SettingsPage() {
                           We'll send a secure reset link to <span className="text-slate-400">{email}</span>
                         </p>
                         {resetSent && (
-                          <p className="text-xs text-emerald-400 mt-2">
+                          <p className="text-xs text-emerald-400 mt-2 animate-fade-up">
                             ✅ Reset link sent — check your inbox!
                           </p>
                         )}
@@ -245,7 +361,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-6">
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-6 transition-colors hover:border-white/12">
                     <h2 className="text-sm font-semibold text-slate-300 mb-5 uppercase tracking-wider">
                       Active Sessions
                     </h2>
@@ -258,7 +374,7 @@ export default function SettingsPage() {
                         </div>
                       </div>
                       <span className="text-xs text-emerald-400 font-medium flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse-slow" />
                         Active now
                       </span>
                     </div>
@@ -279,7 +395,7 @@ export default function SettingsPage() {
 
               {/* ── BILLING TAB ── */}
               {activeTab === "billing" && (
-                <div className="space-y-5">
+                <div className="space-y-5 animate-fade-up" style={{ animationDelay: "120ms" }}>
                   {/* Current plan */}
                   <div className="rounded-2xl border border-blue-500/25 bg-gradient-to-br from-blue-600/10 to-violet-600/10 p-6">
                     <div className="flex items-start justify-between">
@@ -291,14 +407,14 @@ export default function SettingsPage() {
                         <p className="text-3xl font-bold mt-2">Free</p>
                         <p className="text-sm text-slate-400 mt-1">Access to 6 core tools · 10 CV exports/month</p>
                       </div>
-                      <button className="shrink-0 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-medium transition">
+                      <button className="shrink-0 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 hover:scale-[1.02] active:scale-[0.98] text-sm font-medium transition-all">
                         Upgrade to Pro
                       </button>
                     </div>
                   </div>
 
                   {/* Pro features */}
-                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-6">
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-6 transition-colors hover:border-white/12">
                     <h2 className="text-sm font-semibold text-slate-300 mb-5 uppercase tracking-wider">
                       Pro Plan — ₦2,500/mo
                     </h2>
@@ -317,7 +433,7 @@ export default function SettingsPage() {
                         </div>
                       ))}
                     </div>
-                    <button className="mt-6 w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-sm font-medium transition">
+                    <button className="mt-6 w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 hover:scale-[1.01] active:scale-[0.99] text-sm font-medium transition-all">
                       Upgrade now — ₦2,500/mo
                     </button>
                   </div>
@@ -326,7 +442,10 @@ export default function SettingsPage() {
 
               {/* ── NOTIFICATIONS TAB ── */}
               {activeTab === "notifications" && (
-                <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-6">
+                <div
+                  className="rounded-2xl border border-white/8 bg-white/[0.03] p-6 transition-colors hover:border-white/12 animate-fade-up"
+                  style={{ animationDelay: "120ms" }}
+                >
                   <h2 className="text-sm font-semibold text-slate-300 mb-5 uppercase tracking-wider">
                     Email Notifications
                   </h2>
@@ -351,7 +470,7 @@ export default function SettingsPage() {
                               [item.key]: !prev[item.key as keyof typeof prev],
                             }))
                           }
-                          className={`relative w-10 h-5.5 rounded-full transition-colors ${
+                          className={`relative rounded-full transition-colors duration-200 ${
                             notifications[item.key as keyof typeof notifications]
                               ? "bg-blue-600"
                               : "bg-white/10"
@@ -359,7 +478,7 @@ export default function SettingsPage() {
                           style={{ height: "22px", width: "40px" }}
                         >
                           <span
-                            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${
                               notifications[item.key as keyof typeof notifications]
                                 ? "translate-x-[18px]"
                                 : "translate-x-0"

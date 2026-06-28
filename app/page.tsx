@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase"
@@ -83,6 +83,43 @@ const activityIcons: Record<string, any> = {
   "CV Builder": FileText,
   "Invoice Generator": Receipt,
   "Salary Calculator": DollarSign,
+}
+
+/* ── Animated counter for stat values ── */
+function AnimatedNumber({ value }: { value: string }) {
+  const [display, setDisplay] = useState("0")
+  const ran = useRef(false)
+
+  // Pull out the numeric part so "128+" or "2.4K" animate sensibly
+  const match = value.match(/[\d.]+/)
+  const numeric = match ? parseFloat(match[0]) : null
+  const prefix = match ? value.slice(0, match.index) : ""
+  const suffix = match ? value.slice((match.index || 0) + match[0].length) : ""
+  const decimals = match && match[0].includes(".") ? match[0].split(".")[1].length : 0
+
+  useEffect(() => {
+    if (ran.current || numeric === null) {
+      setDisplay(value)
+      return
+    }
+    ran.current = true
+    const target = numeric
+    const duration = 900
+    const start = performance.now()
+
+    function tick(now: number) {
+      const progress = Math.min((now - start) / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      const current = target * eased
+      setDisplay(prefix + current.toFixed(decimals) + suffix)
+      if (progress < 1) requestAnimationFrame(tick)
+      else setDisplay(value)
+    }
+    requestAnimationFrame(tick)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return <span>{display}</span>
 }
 
 export default function Home() {
@@ -194,10 +231,11 @@ export default function Home() {
         <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8">
 
           {/* TOP BAR */}
-          <div className="flex items-start justify-between mb-8 md:mb-10">
+          <div className="flex items-start justify-between mb-8 md:mb-10 animate-fade-up">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold">
-                Welcome back, {firstName} 👋
+                Welcome back, {firstName}{" "}
+                <span className="inline-block animate-wave origin-[70%_70%]">👋</span>
               </h1>
               <p className="text-slate-400 mt-1.5 text-sm">
                 {new Date().toLocaleDateString("en-NG", { weekday: "long", day: "numeric", month: "long" })}
@@ -213,9 +251,9 @@ export default function Home() {
               </Link>
               <Link
                 href="/settings"
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-medium transition flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 hover:scale-[1.03] active:scale-[0.97] text-sm font-medium transition-all flex items-center gap-1.5"
               >
-                <Sparkles size={14} />
+                <Sparkles size={14} className="animate-pulse-slow" />
                 Upgrade
               </Link>
             </div>
@@ -226,14 +264,20 @@ export default function Home() {
             {stats.map((s, i) => {
               const Icon = s.icon
               return (
-                <div key={i} className={`p-5 rounded-2xl bg-gradient-to-br ${s.color} border border-white/8`}>
+                <div
+                  key={i}
+                  className={`p-5 rounded-2xl bg-gradient-to-br ${s.color} border border-white/8 hover:border-white/15 hover:-translate-y-0.5 transition-all duration-200 animate-fade-up`}
+                  style={{ animationDelay: `${80 + i * 70}ms` }}
+                >
                   <div
-                    className="w-9 h-9 rounded-xl flex items-center justify-center mb-4"
+                    className="w-9 h-9 rounded-xl flex items-center justify-center mb-4 transition-transform duration-200 group-hover:scale-110"
                     style={{ backgroundColor: `${s.iconColor}20` }}
                   >
                     <Icon size={18} style={{ color: s.iconColor }} />
                   </div>
-                  <div className="text-2xl font-bold">{s.value}</div>
+                  <div className="text-2xl font-bold tabular-nums">
+                    <AnimatedNumber value={s.value} />
+                  </div>
                   <div className="text-slate-300 text-sm mt-0.5">{s.label}</div>
                   <div className="text-slate-500 text-xs mt-1">{s.sub}</div>
                 </div>
@@ -243,7 +287,7 @@ export default function Home() {
 
           {/* TOOLS */}
           <div className="mb-8 md:mb-10">
-            <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center justify-between mb-5 animate-fade-up" style={{ animationDelay: "200ms" }}>
               <h2 className="text-base font-semibold">Quick tools</h2>
               <Link
                 href="/tools"
@@ -253,24 +297,25 @@ export default function Home() {
               </Link>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-              {tools.map((tool) => {
+              {tools.map((tool, i) => {
                 const Icon = tool.icon
                 return (
                   <Link
                     key={tool.title}
                     href={tool.path}
-                    className="group p-5 rounded-2xl bg-white/[0.04] border border-white/8 hover:bg-white/[0.07] hover:border-white/15 hover:-translate-y-0.5 transition-all duration-200 block"
+                    className="group p-5 rounded-2xl bg-white/[0.04] border border-white/8 hover:bg-white/[0.07] hover:border-white/15 hover:-translate-y-0.5 transition-all duration-200 block animate-fade-up"
+                    style={{ animationDelay: `${260 + i * 60}ms` }}
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div
-                        className="w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"
+                        className="w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 group-hover:-translate-y-0.5 transition-transform duration-200"
                         style={{ backgroundColor: tool.bg }}
                       >
                         <Icon size={18} style={{ color: tool.color }} />
                       </div>
                       {tool.badge && (
                         <span
-                          className="text-xs px-2 py-0.5 rounded-full font-medium"
+                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${tool.badge === "Live" ? "animate-pulse-slow" : ""}`}
                           style={{ backgroundColor: `${tool.color}20`, color: tool.color }}
                         >
                           {tool.badge}
@@ -279,7 +324,10 @@ export default function Home() {
                     </div>
                     <h3 className="text-sm font-semibold mb-1">{tool.title}</h3>
                     <p className="text-slate-400 text-xs">{tool.desc}</p>
-                    <div className="mt-4 text-xs font-medium flex items-center gap-1" style={{ color: tool.color }}>
+                    <div
+                      className="mt-4 text-xs font-medium flex items-center gap-1 transition-transform duration-200 group-hover:translate-x-0.5"
+                      style={{ color: tool.color }}
+                    >
                       Open <ChevronRight size={12} />
                     </div>
                   </Link>
@@ -290,7 +338,7 @@ export default function Home() {
 
           {/* RECENT ACTIVITY */}
           <div>
-            <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center justify-between mb-5 animate-fade-up" style={{ animationDelay: "620ms" }}>
               <h2 className="text-base font-semibold">Recent activity</h2>
               <Link
                 href="/recent"
@@ -301,13 +349,13 @@ export default function Home() {
             </div>
 
             {activity.length === 0 ? (
-              <div className="text-center py-12 rounded-2xl bg-white/[0.03] border border-white/8">
+              <div className="text-center py-12 rounded-2xl bg-white/[0.03] border border-white/8 animate-fade-up" style={{ animationDelay: "680ms" }}>
                 <Clock size={32} className="text-slate-600 mx-auto mb-3" />
                 <p className="text-slate-400 text-sm font-medium">No activity yet</p>
                 <p className="text-slate-600 text-xs mt-1">Start using a tool to see your history here</p>
                 <Link
                   href="/tools"
-                  className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-medium transition"
+                  className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 hover:scale-[1.03] active:scale-[0.97] text-sm font-medium transition-all"
                 >
                   <Wrench size={13} /> Explore tools
                 </Link>
@@ -319,7 +367,8 @@ export default function Home() {
                   return (
                     <div
                       key={i}
-                      className="flex items-center gap-4 p-4 rounded-xl bg-white/[0.04] border border-white/8 hover:bg-white/[0.07] transition cursor-default"
+                      className="flex items-center gap-4 p-4 rounded-xl bg-white/[0.04] border border-white/8 hover:bg-white/[0.07] hover:border-white/15 transition-all duration-200 cursor-default animate-fade-up"
+                      style={{ animationDelay: `${680 + i * 70}ms` }}
                     >
                       <div className="w-9 h-9 rounded-xl bg-white/8 flex items-center justify-center shrink-0">
                         <Icon size={16} className="text-slate-400" />
