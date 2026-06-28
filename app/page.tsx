@@ -29,7 +29,6 @@ export default function Home() {
   const [user, setUser] = useState<any>(null)
   const [loadingUser, setLoadingUser] = useState(true)
 
-  // Form state
   const [loginEmail, setLoginEmail] = useState("")
   const [loginPassword, setLoginPassword] = useState("")
   const [signupName, setSignupName] = useState("")
@@ -41,14 +40,13 @@ export default function Home() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
-  // Check if user is already logged in
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(({ data: { user } }: { data: { user: any } }) => {
       setUser(user)
       setLoadingUser(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
       setUser(session?.user ?? null)
     })
 
@@ -85,7 +83,6 @@ export default function Home() {
     if (error) {
       setError(error.message)
     } else {
-      setError("")
       setError("✅ Account created! Check your email to confirm your account, then sign in.")
     }
     setLoading(false)
@@ -106,7 +103,6 @@ export default function Home() {
     setLoading(false)
   }
 
-  // Loading state
   if (loadingUser) {
     return (
       <div className="min-h-screen bg-[#050816] flex items-center justify-center">
@@ -115,14 +111,11 @@ export default function Home() {
     )
   }
 
-  // ─── AUTH SCREENS ─────────────────────────────────────────────────────────
-
   if (!user) {
     return (
       <div className="min-h-screen bg-[#050816] flex items-center justify-center px-4">
         <div className="w-full max-w-md">
 
-          {/* Logo */}
           <div className="text-center mb-8">
             <span className="text-3xl font-bold text-white tracking-tight">⚡ LaunchPad</span>
             <p className="text-slate-400 mt-2 text-sm">Build • Apply • Grow</p>
@@ -130,7 +123,6 @@ export default function Home() {
 
           <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
 
-            {/* Tabs — hidden on forgot password */}
             {authView !== "forgot" && (
               <div className="flex mb-8 bg-white/5 rounded-xl p-1">
                 <button
@@ -152,7 +144,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* Error / success */}
             {error && (
               <div className={`mb-6 p-3 rounded-xl text-sm border ${
                 error.startsWith("✅")
@@ -163,7 +154,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* Login */}
             {authView === "login" && (
               <form onSubmit={handleLogin} className="space-y-5">
                 <div>
@@ -205,7 +195,6 @@ export default function Home() {
               </form>
             )}
 
-            {/* Signup */}
             {authView === "signup" && (
               <form onSubmit={handleSignup} className="space-y-5">
                 <div>
@@ -254,7 +243,6 @@ export default function Home() {
               </form>
             )}
 
-            {/* Forgot Password */}
             {authView === "forgot" && (
               <div>
                 <h2 className="text-lg font-semibold mb-1">Reset your password</h2>
@@ -312,14 +300,11 @@ export default function Home() {
   return (
     <div className="flex min-h-screen bg-[#050816] text-white">
 
-      {/* SIDEBAR — now using the shared component */}
       <Sidebar user={user} />
 
-      {/* MAIN */}
       <main className="flex-1 overflow-auto">
         <div className="max-w-5xl mx-auto px-6 py-8">
 
-          {/* TOP BAR */}
           <div className="flex items-start justify-between mb-10">
             <div>
               <h1 className="text-3xl font-bold">
@@ -340,7 +325,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* STATS */}
           <div className="grid md:grid-cols-3 gap-4 mb-10">
             {[
               { label: "Tools available", value: "6", icon: "🧰", sub: "+2 coming soon", color: "from-blue-600/15 to-transparent" },
@@ -356,7 +340,6 @@ export default function Home() {
             ))}
           </div>
 
-          {/* TOOLS */}
           <div className="mb-10">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-semibold">Quick tools</h2>
@@ -395,7 +378,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* RECENT ACTIVITY */}
           <div>
             <h2 className="text-lg font-semibold mb-5">Recent activity</h2>
             <div className="space-y-2">
