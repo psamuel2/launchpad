@@ -17,10 +17,15 @@ export default function CVBuilder() {
   const [method, setMethod] = useState<Method>(null)
   const [fileName, setFileName] = useState("")
 
+  // Manual path fields
   const [about, setAbout] = useState("")
   const [education, setEducation] = useState("")
   const [experience, setExperience] = useState("")
   const [skills, setSkills] = useState("")
+
+  // Upload path: raw file text, kept separate from manual fields
+  const [rawUpload, setRawUpload] = useState("")
+  const [uploadExtraNotes, setUploadExtraNotes] = useState("")
 
   const [summary, setSummary] = useState("")
   const [coverLetter, setCoverLetter] = useState("")
@@ -31,28 +36,42 @@ export default function CVBuilder() {
   const [generating, setGenerating] = useState(false)
   const [generatingLetter, setGeneratingLetter] = useState(false)
   const [errorMsg, setErrorMsg] = useState("")
+  const [uploadWarning, setUploadWarning] = useState("")
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     setFileName(file.name)
+    setUploadWarning("")
+
+    const isPlainText = file.type === "text/plain" || file.name.toLowerCase().endsWith(".txt")
+
     try {
       const text = await file.text()
-      setAbout(text.slice(0, 3000))
+      setRawUpload(text.slice(0, 6000))
+      if (!isPlainText) {
+        setUploadWarning(
+          "Heads up: PDF/Word files may extract with messy formatting. If your CV looks off after generating, try re-uploading as a .txt file or switch to manual entry."
+        )
+      }
     } catch {
-      setErrorMsg("Could not read that file. Try pasting your details manually instead.")
+      setErrorMsg("Could not read that file. Try a .txt file or fill in details manually instead.")
     }
-    setStep(3)
   }
 
   async function generateCV() {
     setErrorMsg("")
     setGenerating(true)
     try {
+      const payload =
+        method === "upload"
+          ? { role, rawUpload, skills: uploadExtraNotes }
+          : { role, about, education, experience, skills }
+
       const res = await fetch("/api/generate-cv", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, about, education, experience, skills }),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -106,6 +125,7 @@ export default function CVBuilder() {
 
   const progress = Math.min((step / 4) * 100, 100)
   const parsedCV = parseCVText(summary)
+  const canGenerateUpload = rawUpload.trim().length > 0
 
   return (
     <div className="min-h-screen bg-[#050816] text-white">
@@ -176,7 +196,7 @@ export default function CVBuilder() {
               >
                 <div className="text-3xl mb-3">📄</div>
                 <div className="font-semibold text-sm mb-1">Upload existing CV</div>
-                <div className="text-slate-400 text-xs">We'll use it as a starting point</div>
+                <div className="text-slate-400 text-xs">AI rewrites and tailors it for this role</div>
               </button>
               <button
                 className="p-6 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all text-left"
@@ -194,32 +214,42 @@ export default function CVBuilder() {
         {step === 3 && method === "upload" && (
           <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
             <h2 className="text-xl font-semibold mb-1">Upload your previous CV</h2>
-            <p className="text-slate-400 text-sm mb-6">Accepts .txt files best — PDFs/Word may need manual cleanup.</p>
+            <p className="text-slate-400 text-sm mb-6">
+              AI will read it, pull out your real experience, education and skills, and rewrite it for this role. Plain .txt files work most reliably.
+            </p>
             <label className="block border-2 border-dashed border-white/15 rounded-xl p-8 text-center cursor-pointer hover:border-blue-500/50 transition">
               <input type="file" accept=".pdf,.doc,.docx,.txt" onChange={handleUpload} className="hidden" />
               <div className="text-2xl mb-2">📤</div>
               <div className="text-sm text-slate-300">Click to choose a file</div>
             </label>
             {fileName && <p className="text-sm text-slate-400 mt-4">Uploaded: {fileName}</p>}
+            {uploadWarning && (
+              <div className="mt-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
+                {uploadWarning}
+              </div>
+            )}
             <button
               className="mt-6 text-sm text-blue-400 hover:text-blue-300 transition"
-              onClick={() => setStep(3)}
+              onClick={() => setMethod("manual")}
             >
               Or fill in details manually instead →
             </button>
-            {about && (
+
+            {rawUpload && (
               <div className="mt-6">
-                <label className="block text-sm text-slate-300 mb-2">Add anything else (optional)</label>
+                <label className="block text-sm text-slate-300 mb-2">
+                  Anything specific to emphasize for this role? (optional)
+                </label>
                 <textarea
-                  className="w-full h-32 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 transition text-sm"
-                  placeholder="Skills, role focus, anything to emphasize..."
-                  value={skills}
-                  onChange={(e) => setSkills(e.target.value)}
+                  className="w-full h-24 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 transition text-sm"
+                  placeholder="e.g. focus more on leadership experience, or mention I'm open to relocating"
+                  value={uploadExtraNotes}
+                  onChange={(e) => setUploadExtraNotes(e.target.value)}
                 />
                 <button
                   className="mt-4 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] transition-all text-sm font-medium disabled:opacity-50 flex items-center gap-2"
                   onClick={generateCV}
-                  disabled={generating}
+                  disabled={generating || !canGenerateUpload}
                 >
                   {generating ? "Generating…" : "Generate CV with AI"}
                 </button>
