@@ -13,10 +13,18 @@ export function CVPreview({
 }) {
   return (
     <div className="bg-white text-[#1a1a1a] rounded-lg shadow-2xl p-10 mx-auto max-w-2xl font-serif">
+      {/* Header */}
       <h1 className="text-3xl font-bold tracking-tight">{name || "Your Name"}</h1>
-      <p className="text-sm text-gray-600 mt-1 mb-6">{role}</p>
-      <div className="border-b border-gray-300 mb-6" />
+      <p className="text-sm text-gray-600 mt-1">{role}</p>
 
+      {/* Contact info */}
+      {parsed.contact && (
+        <p className="text-xs text-gray-500 mt-1 mb-4 leading-relaxed">{parsed.contact}</p>
+      )}
+
+      <div className="border-b border-gray-300 mb-6 mt-3" />
+
+      {/* Summary */}
       {parsed.summary && (
         <section className="mb-6">
           <h2 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">
@@ -26,28 +34,37 @@ export function CVPreview({
         </section>
       )}
 
+      {/* Experience */}
       {parsed.experience.length > 0 && (
         <section className="mb-6">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-3">
             Experience
           </h2>
-          <ul className="space-y-1.5">
-            {parsed.experience.map((line, i) => (
-              <li key={i} className="text-sm leading-relaxed text-gray-800 flex gap-2">
-                <span className="text-gray-400 shrink-0">•</span>
-                <span>{line.replace(/^-\s*/, "")}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-1">
+            {parsed.experience.map((line, i) => {
+              const isBullet = line.startsWith("-") || line.startsWith("•")
+              return isBullet ? (
+                <div key={i} className="flex gap-2 text-sm text-gray-800 ml-2">
+                  <span className="text-gray-400 shrink-0 mt-0.5">•</span>
+                  <span>{line.replace(/^[-•]\s*/, "")}</span>
+                </div>
+              ) : (
+                <p key={i} className="text-sm font-semibold text-gray-900 mt-4 first:mt-0">
+                  {line}
+                </p>
+              )
+            })}
+          </div>
         </section>
       )}
 
+      {/* Education */}
       {parsed.education.length > 0 && (
         <section className="mb-6">
           <h2 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">
             Education
           </h2>
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {parsed.education.map((line, i) => (
               <p key={i} className="text-sm leading-relaxed text-gray-800">
                 {line}
@@ -57,6 +74,7 @@ export function CVPreview({
         </section>
       )}
 
+      {/* Skills */}
       {parsed.skills && (
         <section>
           <h2 className="text-xs font-bold uppercase tracking-wider text-blue-700 mb-2">

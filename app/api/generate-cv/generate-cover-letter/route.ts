@@ -13,22 +13,26 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { role, cvSummary } = await req.json()
+    const { role, cvSummary, fullName } = await req.json()
 
     if (!role || !role.trim()) {
       return NextResponse.json({ error: "Role is required." }, { status: 400 })
     }
 
-    const prompt = `Write a concise, professional cover letter (around 250-350 words) for a candidate applying to a "${role}" role, based on this CV content:
+    const prompt = `Write a concise, professional cover letter (around 250-350 words) for ${fullName || "a candidate"} applying to a "${role}" role, based on this CV content:
 
-${cvSummary || "(no CV content provided, write a general strong cover letter for this role)"}
+${cvSummary || "(no CV content provided — write a strong general cover letter for this role)"}
 
 Rules:
 - Plain text only, no markdown symbols, no asterisks or hashes
 - Use a standard cover letter structure: opening hook, 1-2 body paragraphs connecting their background to the role, closing call to action
-- Do not invent a company name — use a generic, professional placeholder like "your team" or "your organization"
+- Do not invent a company name — use a professional placeholder like "your team" or "your organisation"
 - Do not add any commentary before or after the letter itself
-- Sign off with "Sincerely," followed by a blank line (the candidate will add their name)`
+- End with:
+
+Sincerely,
+
+${fullName || "[Your Name]"}`
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
