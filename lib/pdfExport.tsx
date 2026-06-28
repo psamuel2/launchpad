@@ -116,6 +116,58 @@ export async function downloadCVAsPDF(name: string, role: string, parsed: Parsed
   URL.revokeObjectURL(url)
 }
 
+/**
+ * Builds the same CV PDF as downloadCVAsPDF, but instead of downloading it,
+ * uploads it to the user's 'cvs' storage bucket and records it in the `cvs`
+ * table so it can be picked later when applying to jobs on /careers/[id].
+ *
+ * Returns the public URL of the saved file, or null if saving failed.
+ */
+export async function saveCVToSupabase(
+  supabase: any,
+  userId: string,
+  name: string,
+  role: string,
+  parsed: ParsedCV
+): Promise<string | null> {
+  try {
+    const blob = await pdf(<CVDocument name={name} role={role} parsed={parsed} />).toBlob()
+    const fileName = `${userId}/cv-${Date.now()}.pdf`
+
+    const { error: uploadError } = await supabase.storage
+      .from("cvs")
+      .upload(fileName, blob, {
+        contentType: "application/pdf",
+        upsert: false,
+      })
+
+    if (uploadError) {
+      console.error("CV upload failed:", uploadError)
+      return null
+    }
+
+    const { data: publicUrlData } = supabase.storage.from("cvs").getPublicUrl(fileName)
+    const fileUrl = publicUrlData.publicUrl
+
+    const { error: insertError } = await supabase.from("cvs").insert({
+      user_id: userId,
+      full_name: name || null,
+      role: role || null,
+      file_url: fileUrl,
+    })
+
+    if (insertError) {
+      console.error("Saving CV record failed:", insertError)
+      return null
+    }
+
+    return fileUrl
+  } catch (err) {
+    console.error("saveCVToSupabase error:", err)
+    return null
+  }
+}
+
 export async function downloadCoverLetterAsPDF(name: string, letter: string) {
   const doc = (
     <Document>

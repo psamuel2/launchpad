@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
+import { createClient } from "@/lib/supabase"
 import { parseCVText } from "@/lib/parseCv"
-import { downloadCVAsPDF, downloadCoverLetterAsPDF } from "@/lib/pdfExport"
+import { downloadCVAsPDF, downloadCoverLetterAsPDF, saveCVToSupabase } from "@/lib/pdfExport"
 import { downloadCVAsWord, downloadCoverLetterAsWord } from "@/lib/wordExport"
 import { CVPreview, CoverLetterPreview } from "@/lib/cvPreview"
 
@@ -11,6 +12,9 @@ type Method = "upload" | "manual" | null
 type ViewMode = "edit" | "preview"
 
 export default function CVBuilder() {
+  const supabase = createClient()
+  const [userId, setUserId] = useState<string | null>(null)
+
   const [step, setStep] = useState(1)
   const [role, setRole] = useState("")
   const [fullName, setFullName] = useState("")
@@ -38,6 +42,15 @@ export default function CVBuilder() {
   const [errorMsg, setErrorMsg] = useState("")
   const [uploadWarning, setUploadWarning] = useState("")
 
+  const [savingCV, setSavingCV] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "failed">("idle")
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }: { data: { user: any } }) => {
+      if (user) setUserId(user.id)
+    })
+  }, [])
+
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -53,11 +66,9 @@ export default function CVBuilder() {
         const text = await file.text()
         setRawUpload(text.slice(0, 6000))
       } else {
-        // Extract readable text from binary files (PDF/Word)
         const buffer = await file.arrayBuffer()
         const decoder = new TextDecoder("latin1")
         const raw = decoder.decode(buffer)
-        // Pull out readable ASCII sequences of 4+ characters
         const readable = raw.match(/[ -~]{4,}/g)?.join(" ") ?? ""
         if (readable.trim().length < 100) {
           setUploadWarning(
@@ -130,9 +141,18 @@ export default function CVBuilder() {
     }
   }
 
-  function handlePDF() {
+  async function handlePDF() {
     const parsed = parseCVText(summary)
     downloadCVAsPDF(fullName, role, parsed)
+
+    if (userId) {
+      setSavingCV(true)
+      setSaveStatus("idle")
+      const url = await saveCVToSupabase(supabase, userId, fullName, role, parsed)
+      setSavingCV(false)
+      setSaveStatus(url ? "saved" : "failed")
+      setTimeout(() => setSaveStatus("idle"), 4000)
+    }
   }
 
   function handleWord() {
@@ -148,7 +168,6 @@ export default function CVBuilder() {
     <div className="min-h-screen bg-[#050816] text-white">
       <div className="max-w-3xl mx-auto px-6 py-10">
 
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <Link href="/" className="text-sm text-slate-400 hover:text-white transition flex items-center gap-1">
             ← Back to dashboard
@@ -161,7 +180,6 @@ export default function CVBuilder() {
         <h1 className="text-3xl font-bold mb-1">Build your CV</h1>
         <p className="text-slate-400 text-sm mb-8">A few steps and AI handles the polish.</p>
 
-        {/* Progress bar */}
         <div className="h-1.5 w-full bg-white/8 rounded-full mb-10 overflow-hidden">
           <div
             className="h-full bg-blue-600 transition-all duration-300"
@@ -175,7 +193,6 @@ export default function CVBuilder() {
           </div>
         )}
 
-        {/* STEP 1: Role + Name */}
         {step === 1 && (
           <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
             <h2 className="text-xl font-semibold mb-1">What role are you applying for?</h2>
@@ -202,7 +219,6 @@ export default function CVBuilder() {
           </div>
         )}
 
-        {/* STEP 2: Method */}
         {step === 2 && (
           <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
             <h2 className="text-xl font-semibold mb-6">How would you like to build your CV?</h2>
@@ -227,7 +243,6 @@ export default function CVBuilder() {
           </div>
         )}
 
-        {/* STEP 3a: Upload */}
         {step === 3 && method === "upload" && (
           <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
             <h2 className="text-xl font-semibold mb-1">Upload your previous CV</h2>
@@ -284,7 +299,6 @@ export default function CVBuilder() {
           </div>
         )}
 
-        {/* STEP 3b: Manual */}
         {step === 3 && method === "manual" && (
           <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
             <h2 className="text-xl font-semibold mb-6">Tell us about yourself</h2>
@@ -336,7 +350,6 @@ export default function CVBuilder() {
           </div>
         )}
 
-        {/* STEP 4: Result */}
         {step === 4 && (
           <div className="space-y-6">
             <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
@@ -355,7 +368,6 @@ export default function CVBuilder() {
                 </button>
               </div>
 
-              {/* Edit / Preview toggle */}
               <div className="inline-flex bg-white/5 border border-white/10 rounded-xl p-1 mb-4">
                 <button
                   className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
@@ -394,10 +406,16 @@ export default function CVBuilder() {
 
               <div className="grid md:grid-cols-3 gap-3 mt-6">
                 <button
-                  className="py-3 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] transition-all text-sm font-medium"
+                  className="py-3 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] transition-all text-sm font-medium flex items-center justify-center gap-2"
                   onClick={handlePDF}
+                  disabled={savingCV}
                 >
-                  Download PDF
+                  {savingCV ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Saving…
+                    </>
+                  ) : "Download PDF"}
                 </button>
                 <button
                   className="py-3 rounded-xl bg-white/8 hover:bg-white/15 border border-white/10 transition-all text-sm font-medium"
@@ -413,9 +431,19 @@ export default function CVBuilder() {
                   {generatingLetter ? "Generating…" : "Generate Cover Letter"}
                 </button>
               </div>
+
+              {saveStatus === "saved" && (
+                <p className="text-xs text-emerald-400 mt-3">
+                  ✅ Saved to your LaunchPad CVs — you can use it when applying to jobs
+                </p>
+              )}
+              {saveStatus === "failed" && (
+                <p className="text-xs text-amber-400 mt-3">
+                  Downloaded, but couldn't save a copy to your account. You can still upload it manually when applying.
+                </p>
+              )}
             </div>
 
-            {/* Cover Letter */}
             {coverLetter && (
               <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
                 <h2 className="text-xl font-semibold mb-4">Cover Letter</h2>
