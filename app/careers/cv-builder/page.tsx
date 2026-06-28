@@ -5,8 +5,10 @@ import Link from "next/link"
 import { parseCVText } from "@/lib/parseCv"
 import { downloadCVAsPDF, downloadCoverLetterAsPDF } from "@/lib/pdfExport"
 import { downloadCVAsWord, downloadCoverLetterAsWord } from "@/lib/wordExport"
+import { CVPreview, CoverLetterPreview } from "@/lib/cvPreview"
 
 type Method = "upload" | "manual" | null
+type ViewMode = "edit" | "preview"
 
 export default function CVBuilder() {
   const [step, setStep] = useState(1)
@@ -22,6 +24,9 @@ export default function CVBuilder() {
 
   const [summary, setSummary] = useState("")
   const [coverLetter, setCoverLetter] = useState("")
+
+  const [cvView, setCvView] = useState<ViewMode>("preview")
+  const [letterView, setLetterView] = useState<ViewMode>("preview")
 
   const [generating, setGenerating] = useState(false)
   const [generatingLetter, setGeneratingLetter] = useState(false)
@@ -56,6 +61,7 @@ export default function CVBuilder() {
         return
       }
       setSummary(data.summary)
+      setCvView("preview")
       setStep(4)
     } catch {
       setErrorMsg("Network error — please try again.")
@@ -80,6 +86,7 @@ export default function CVBuilder() {
         return
       }
       setCoverLetter(data.letter)
+      setLetterView("preview")
     } catch {
       setErrorMsg("Network error — please try again.")
     } finally {
@@ -98,6 +105,7 @@ export default function CVBuilder() {
   }
 
   const progress = Math.min((step / 4) * 100, 100)
+  const parsedCV = parseCVText(summary)
 
   return (
     <div className="min-h-screen bg-[#050816] text-white">
@@ -288,12 +296,41 @@ export default function CVBuilder() {
                   ← Edit inputs
                 </button>
               </div>
-              <textarea
-                className="w-full h-96 bg-[#0a0f1f] border border-white/10 rounded-xl px-4 py-4 text-white text-sm leading-relaxed focus:outline-none focus:border-blue-500/50 transition font-mono"
-                value={summary}
-                onChange={(e) => setSummary(e.target.value)}
-              />
-              <p className="text-xs text-slate-500 mt-2">You can edit the text directly before downloading.</p>
+
+              {/* Edit/Preview toggle */}
+              <div className="inline-flex bg-white/5 border border-white/10 rounded-xl p-1 mb-4">
+                <button
+                  className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    cvView === "edit" ? "bg-white/10 text-white" : "text-slate-400 hover:text-white"
+                  }`}
+                  onClick={() => setCvView("edit")}
+                >
+                  Edit
+                </button>
+                <button
+                  className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    cvView === "preview" ? "bg-white/10 text-white" : "text-slate-400 hover:text-white"
+                  }`}
+                  onClick={() => setCvView("preview")}
+                >
+                  Preview
+                </button>
+              </div>
+
+              {cvView === "edit" ? (
+                <>
+                  <textarea
+                    className="w-full h-96 bg-[#0a0f1f] border border-white/10 rounded-xl px-4 py-4 text-white text-sm leading-relaxed focus:outline-none focus:border-blue-500/50 transition font-mono"
+                    value={summary}
+                    onChange={(e) => setSummary(e.target.value)}
+                  />
+                  <p className="text-xs text-slate-500 mt-2">You can edit the text directly. Switch to Preview to see how it'll look.</p>
+                </>
+              ) : (
+                <div className="bg-[#0a0f1f] border border-white/10 rounded-xl p-6 max-h-[600px] overflow-y-auto">
+                  <CVPreview name={fullName} role={role} parsed={parsedCV} />
+                </div>
+              )}
 
               <div className="grid md:grid-cols-3 gap-3 mt-6">
                 <button
@@ -321,11 +358,39 @@ export default function CVBuilder() {
             {coverLetter && (
               <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
                 <h2 className="text-xl font-semibold mb-4">Cover Letter</h2>
-                <textarea
-                  className="w-full h-72 bg-[#0a0f1f] border border-white/10 rounded-xl px-4 py-4 text-white text-sm leading-relaxed focus:outline-none focus:border-blue-500/50 transition"
-                  value={coverLetter}
-                  onChange={(e) => setCoverLetter(e.target.value)}
-                />
+
+                {/* Edit/Preview toggle */}
+                <div className="inline-flex bg-white/5 border border-white/10 rounded-xl p-1 mb-4">
+                  <button
+                    className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      letterView === "edit" ? "bg-white/10 text-white" : "text-slate-400 hover:text-white"
+                    }`}
+                    onClick={() => setLetterView("edit")}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      letterView === "preview" ? "bg-white/10 text-white" : "text-slate-400 hover:text-white"
+                    }`}
+                    onClick={() => setLetterView("preview")}
+                  >
+                    Preview
+                  </button>
+                </div>
+
+                {letterView === "edit" ? (
+                  <textarea
+                    className="w-full h-72 bg-[#0a0f1f] border border-white/10 rounded-xl px-4 py-4 text-white text-sm leading-relaxed focus:outline-none focus:border-blue-500/50 transition"
+                    value={coverLetter}
+                    onChange={(e) => setCoverLetter(e.target.value)}
+                  />
+                ) : (
+                  <div className="bg-[#0a0f1f] border border-white/10 rounded-xl p-6 max-h-[500px] overflow-y-auto">
+                    <CoverLetterPreview name={fullName} letter={coverLetter} />
+                  </div>
+                )}
+
                 <div className="grid md:grid-cols-2 gap-3 mt-4">
                   <button
                     className="py-3 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] transition-all text-sm font-medium"
