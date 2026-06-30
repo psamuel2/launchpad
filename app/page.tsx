@@ -146,7 +146,7 @@ export default function Home() {
       .then(({ data: { user } }: { data: { user: any } }) => {
         if (!isMounted) return
         if (!user) {
-          router.push("/")
+          router.push("/login")
         } else {
           setUser(user)
           setLoadingUser(false)
@@ -155,7 +155,7 @@ export default function Home() {
       .catch((err: any) => {
         console.error("Auth check failed:", err)
         if (!isMounted) return
-        router.push("/")
+        router.push("/login")
       })
 
     // Safety net: never let the spinner hang forever, even if the
@@ -165,7 +165,7 @@ export default function Home() {
         setLoadingUser((prev) => {
           if (prev) {
             console.error("Auth check timed out")
-            router.push("/")
+            router.push("/login")
           }
           return prev
         })
