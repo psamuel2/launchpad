@@ -123,7 +123,10 @@ function AnimatedNumber({ value }: { value: string }) {
 }
 
 export default function Home() {
-  const supabase = createClient()
+  // IMPORTANT: only create the Supabase client ONCE per component instance,
+  // not on every render. Recreating it repeatedly can cause the internal
+  // Web Locks based session handling to hang indefinitely.
+  const [supabase] = useState(() => createClient())
   const router = useRouter()
 
   const [user, setUser] = useState<any>(null)

@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { createClient } from "@/lib/supabase"
@@ -15,7 +16,10 @@ const navItems = [
 export default function Sidebar({ user }: { user: any }) {
   const pathname = usePathname()
   const router = useRouter()
-  const supabase = createClient()
+  // IMPORTANT: only create the Supabase client ONCE per component instance,
+  // not on every render. Recreating it repeatedly can cause the internal
+  // Web Locks based session handling to hang indefinitely.
+  const [supabase] = useState(() => createClient())
 
   const userName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User"
   const userInitials = userName.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)
