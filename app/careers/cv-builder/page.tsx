@@ -12,7 +12,7 @@ type Method = "upload" | "manual" | null
 type ViewMode = "edit" | "preview"
 
 export default function CVBuilder() {
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const [userId, setUserId] = useState<string | null>(null)
 
   const [step, setStep] = useState(1)
@@ -30,6 +30,7 @@ export default function CVBuilder() {
   // Upload path
   const [rawUpload, setRawUpload] = useState("")
   const [uploadExtraNotes, setUploadExtraNotes] = useState("")
+  const [extracting, setExtracting] = useState(false)
 
   const [summary, setSummary] = useState("")
   const [coverLetter, setCoverLetter] = useState("")
@@ -57,33 +58,74 @@ export default function CVBuilder() {
     setFileName(file.name)
     setUploadWarning("")
     setErrorMsg("")
+    setRawUpload("")
+    setExtracting(true)
 
-    const isPlainText =
-      file.type === "text/plain" || file.name.toLowerCase().endsWith(".txt")
+    const lowerName = file.name.toLowerCase()
+    const isPlainText = file.type === "text/plain" || lowerName.endsWith(".txt")
+    const isDocx = lowerName.endsWith(".docx")
+    const isPdf = file.type === "application/pdf" || lowerName.endsWith(".pdf")
 
     try {
       if (isPlainText) {
         const text = await file.text()
         setRawUpload(text.slice(0, 6000))
-      } else {
+        return
+      }
+
+      if (isDocx) {
+        const mammoth = await import("mammoth")
         const buffer = await file.arrayBuffer()
-        const decoder = new TextDecoder("latin1")
-        const raw = decoder.decode(buffer)
-        const readable = raw.match(/[ -~]{4,}/g)?.join(" ") ?? ""
-        if (readable.trim().length < 100) {
+        const result = await mammoth.extractRawText({ arrayBuffer: buffer })
+        const text = result.value.trim()
+        if (text.length < 50) {
           setUploadWarning(
-            "We couldn't extract enough text from this file. For best results, open your CV and save it as a .txt file, then re-upload."
-          )
-          setRawUpload(readable.slice(0, 6000))
-        } else {
-          setRawUpload(readable.slice(0, 6000))
-          setUploadWarning(
-            "PDF/Word files may lose some formatting during extraction. If anything looks off after generating, try re-uploading as a .txt file."
+            "We couldn't find much text in this document. If it's mostly tables or images, try saving it as a .txt file and re-uploading."
           )
         }
+        setRawUpload(text.slice(0, 6000))
+        return
       }
-    } catch {
+
+      if (isPdf) {
+        const pdfjsLib = await import("pdfjs-dist")
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
+
+        const buffer = await file.arrayBuffer()
+        const pdf = await pdfjsLib.getDocument({ data: buffer }).promise
+
+        let fullText = ""
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i)
+          const content = await page.getTextContent()
+          const pageText = content.items.map((item: any) => item.str).join(" ")
+          fullText += pageText + "\n"
+        }
+
+        const text = fullText.trim()
+        if (text.length < 50) {
+          setUploadWarning(
+            "We couldn't find much text in this PDF — it might be a scanned image. Try saving your CV as a .txt or .docx file and re-uploading."
+          )
+        }
+        setRawUpload(text.slice(0, 6000))
+        return
+      }
+
+      // .doc (legacy binary Word format) — not reliably parseable client-side
+      setUploadWarning(
+        "Legacy .doc files aren't fully supported. For best results, re-save your CV as .docx, .pdf, or .txt and re-upload."
+      )
+      const buffer = await file.arrayBuffer()
+      const decoder = new TextDecoder("latin1")
+      const raw = decoder.decode(buffer)
+      const readable = raw.match(/[ -~]{4,}/g)?.join(" ") ?? ""
+      setRawUpload(readable.slice(0, 6000))
+    } catch (err) {
+      console.error("Upload parsing error:", err)
       setErrorMsg("Could not read that file. Try saving your CV as a .txt file and re-uploading.")
+    } finally {
+      setExtracting(false)
     }
   }
 
@@ -248,7 +290,7 @@ export default function CVBuilder() {
             <h2 className="text-xl font-semibold mb-1">Upload your previous CV</h2>
             <p className="text-slate-400 text-sm mb-6">
               AI will read it, extract your experience, education and skills, and rewrite it for this role.
-              Plain <span className="text-white">.txt files</span> work most reliably.
+              <span className="text-white"> .txt, .pdf and .docx</span> all work well.
             </p>
             <label className="block border-2 border-dashed border-white/15 rounded-xl p-8 text-center cursor-pointer hover:border-blue-500/50 transition">
               <input type="file" accept=".pdf,.doc,.docx,.txt" onChange={handleUpload} className="hidden" />
@@ -260,6 +302,7 @@ export default function CVBuilder() {
             {fileName && (
               <p className="text-sm text-slate-400 mt-4">
                 Uploaded: <span className="text-white">{fileName}</span>
+                {extracting && <span className="text-slate-500"> — reading file…</span>}
               </p>
             )}
 
@@ -276,7 +319,7 @@ export default function CVBuilder() {
               Or fill in details manually instead →
             </button>
 
-            {rawUpload && (
+            {rawUpload && !extracting && (
               <div className="mt-6">
                 <label className="block text-sm text-slate-300 mb-2">
                   Anything specific to highlight for this role? <span className="text-slate-500">(optional)</span>
