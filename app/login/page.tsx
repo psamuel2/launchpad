@@ -3,15 +3,17 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase"
+import { Eye, EyeOff } from "lucide-react"
 
 export default function LoginPage() {
   const router = useRouter()
   const [supabase] = useState(() => createClient())
 
-  const [mode, setMode] = useState<"signin" | "signup">("signin")
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [fullName, setFullName] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -23,7 +25,16 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      if (mode === "signup") {
+      if (mode === "forgot") {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        })
+        if (error) {
+          setError(error.message)
+        } else {
+          setMessage("Password reset link sent. Check your email.")
+        }
+      } else if (mode === "signup") {
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -59,7 +70,9 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <div className="text-2xl font-bold mb-1">⚡ LaunchPad</div>
           <p className="text-slate-400 text-sm">
-            {mode === "signin" ? "Sign in to your account" : "Create your account"}
+            {mode === "signin" && "Sign in to your account"}
+            {mode === "signup" && "Create your account"}
+            {mode === "forgot" && "Reset your password"}
           </p>
         </div>
 
@@ -93,18 +106,45 @@ export default function LoginPage() {
             />
           </div>
 
-          <div>
-            <label className="block text-xs text-slate-400 mb-1.5">Password</label>
-            <input
-              type="password"
-              required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm outline-none focus:border-blue-500/50 transition"
-              placeholder="••••••••"
-            />
-          </div>
+          {mode !== "forgot" && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs text-slate-400">Password</label>
+                {mode === "signin" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("forgot")
+                      setError(null)
+                      setMessage(null)
+                    }}
+                    className="text-xs text-blue-400 hover:text-blue-300 transition"
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-3 py-2.5 pr-10 rounded-xl bg-white/5 border border-white/10 text-sm outline-none focus:border-blue-500/50 transition"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+          )}
 
           {error && (
             <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
@@ -122,23 +162,45 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all mt-1"
           >
-            {loading ? "Please wait…" : mode === "signin" ? "Sign in" : "Sign up"}
+            {loading
+              ? "Please wait…"
+              : mode === "signin"
+              ? "Sign in"
+              : mode === "signup"
+              ? "Sign up"
+              : "Send reset link"}
           </button>
         </form>
 
         <p className="text-center text-sm text-slate-400 mt-5">
-          {mode === "signin" ? "Don't have an account?" : "Already have an account?"}{" "}
-          <button
-            type="button"
-            onClick={() => {
-              setMode(mode === "signin" ? "signup" : "signin")
-              setError(null)
-              setMessage(null)
-            }}
-            className="text-blue-400 hover:text-blue-300 font-medium transition"
-          >
-            {mode === "signin" ? "Sign up" : "Sign in"}
-          </button>
+          {mode === "forgot" ? (
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signin")
+                setError(null)
+                setMessage(null)
+              }}
+              className="text-blue-400 hover:text-blue-300 font-medium transition"
+            >
+              Back to sign in
+            </button>
+          ) : (
+            <>
+              {mode === "signin" ? "Don't have an account?" : "Already have an account?"}{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode(mode === "signin" ? "signup" : "signin")
+                  setError(null)
+                  setMessage(null)
+                }}
+                className="text-blue-400 hover:text-blue-300 font-medium transition"
+              >
+                {mode === "signin" ? "Sign up" : "Sign in"}
+              </button>
+            </>
+          )}
         </p>
       </div>
     </div>
