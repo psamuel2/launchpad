@@ -136,20 +136,48 @@ export default function Home() {
   ])
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }: { data: { user: any } }) => {
-      if (!user) {
+    let isMounted = true
+
+    supabase.auth
+      .getUser()
+      .then(({ data: { user } }: { data: { user: any } }) => {
+        if (!isMounted) return
+        if (!user) {
+          router.push("/")
+        } else {
+          setUser(user)
+          setLoadingUser(false)
+        }
+      })
+      .catch((err: any) => {
+        console.error("Auth check failed:", err)
+        if (!isMounted) return
         router.push("/")
-      } else {
-        setUser(user)
-        setLoadingUser(false)
+      })
+
+    // Safety net: never let the spinner hang forever, even if the
+    // Supabase call stalls without resolving or rejecting.
+    const timeout = setTimeout(() => {
+      if (isMounted) {
+        setLoadingUser((prev) => {
+          if (prev) {
+            console.error("Auth check timed out")
+            router.push("/")
+          }
+          return prev
+        })
       }
-    })
+    }, 8000)
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
-      setUser(session?.user ?? null)
+      if (isMounted) setUser(session?.user ?? null)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      isMounted = false
+      clearTimeout(timeout)
+      subscription.unsubscribe()
+    }
   }, [])
 
   if (loadingUser) {
