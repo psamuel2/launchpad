@@ -78,7 +78,7 @@ export default function Sidebar({ user }: { user: any }) {
         {/* User */}
         <div className="mt-auto pt-5 border-t border-white/8">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full overflow-hidden bg-blue-600 flex items-center justify-center text-xs font-bold shrink-0">
+            <div className="w-12 h-12 rounded-full overflow-hidden bg-blue-600 flex items-center justify-center text-sm font-bold shrink-0">
               {avatarUrl ? (
                 <img
                   src={avatarUrl}
